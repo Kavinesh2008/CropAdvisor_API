@@ -1007,6 +1007,47 @@ a:hover {
     overflow-y: auto;
 }
 
+.edit-form-error {
+    margin-top: 1rem;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid #fecaca;
+    border-radius: var(--radius-sm);
+    background: #fef2f2;
+    color: #991b1b;
+    overflow-wrap: anywhere;
+}
+
+.photo-preview-error {
+    margin-top: 0.5rem;
+    color: var(--accent-red);
+    font-size: 0.8rem;
+}
+
+.ticket-row-actions,
+.photo-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.btn-edit-record {
+    color: #166534;
+    border-color: #86efac;
+    background: #f0fdf4;
+}
+
+.btn-edit-record:hover {
+    color: #14532d;
+    border-color: #4ade80;
+    background: #dcfce7;
+}
+
+.photo-card-actions {
+    justify-content: space-between;
+}
+
 /* Ticket Detail Modal Specifics */
 .detail-summary-grid {
     display: grid;
@@ -1161,4 +1202,7 @@ a:hover {
     }
     .top-bar { padding: 0 0.85rem; }
     .live-clock { display: none; }
+    .modal-backdrop { padding: 0.65rem; }
+    .modal-header, .modal-body { padding: 1rem; }
+    .form-actions { flex-wrap: wrap; }
 }

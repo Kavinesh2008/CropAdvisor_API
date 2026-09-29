@@ -113,9 +113,9 @@
                 <div class="alert-icon"><i data-lucide="alert-triangle"></i></div>
                 <div class="alert-body">
                     <strong id="escalatedAlertText">Attention Needed:</strong> 
-                    <span id="escalatedAlertSub">There are high-priority escalated crop disease tickets requiring immediate officer advisory.</span>
+                    <span id="escalatedAlertSub">Unresolved escalated crop disease reports require urgent attention.</span>
                 </div>
-                <button class="btn btn-sm btn-outline-danger" onclick="app.switchTab('sec-tickets-list', {filter: 'ESCALATED'})">View Escalated</button>
+                <button class="btn btn-sm btn-outline-danger" onclick="app.switchTab('sec-tickets-list', {filter: 'ACTIVE_ESCALATIONS'})">View Active Escalations</button>
             </div>
 
             <!-- SECTION A: DASHBOARD -->
@@ -285,11 +285,12 @@
                                         <th>Assigned Officer</th>
                                         <th>Status</th>
                                         <th>Escalated</th>
+                                        <th>Reported Date</th>
                                         <th>Action</th>
                                     </tr>
                                 </thead>
                                 <tbody id="dashboardRecentTicketsBody">
-                                    <tr><td colspan="8" class="text-center text-muted py-4">Loading tickets...</td></tr>
+                                    <tr><td colspan="9" class="text-center text-muted py-4">Loading tickets...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -587,11 +588,12 @@
                                         <th>Email</th>
                                         <th>Phone</th>
                                         <th>Active</th>
+                                        <th>Registered Date</th>
                                         <th class="text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="officersTableBody">
-                                    <tr><td colspan="8" class="text-center text-muted py-4">Loading officers...</td></tr>
+                                    <tr><td colspan="9" class="text-center text-muted py-4">Loading officers...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -732,12 +734,13 @@
                             
                             <div class="filter-group">
                                 <select id="ticketStatusFilter" class="form-control">
-                                    <option value="">All Statuses</option>
+                                    <option value="">All Tickets</option>
                                     <option value="OPEN">OPEN Only</option>
                                     <option value="IN_PROGRESS">IN_PROGRESS Only</option>
                                     <option value="RESOLVED">RESOLVED Only</option>
                                     <option value="CLOSED">CLOSED Only</option>
-                                    <option value="ESCALATED">🚨 ESCALATED Only</option>
+                                    <option value="ACTIVE_ESCALATIONS">Active Escalations</option>
+                                    <option value="ESCALATION_HISTORY">Escalation History</option>
                                 </select>
                             </div>
 
@@ -772,11 +775,12 @@
                                         <th>Status</th>
                                         <th>Recommendation</th>
                                         <th>Escalated</th>
+                                        <th>Timestamps</th>
                                         <th class="text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="ticketsTableBody">
-                                    <tr><td colspan="9" class="text-center text-muted py-4">Loading tickets...</td></tr>
+                                    <tr><td colspan="10" class="text-center text-muted py-4">Loading tickets...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -962,7 +966,7 @@
 
                 <div class="modal-body">
                     <!-- Ticket Details Header Grid -->
-                    <div class="detail-summary-grid mb-4">
+                    <div class="detail-summary-grid mb-3">
                         <div class="detail-box">
                             <span class="detail-label">Farmer</span>
                             <strong id="modalTicketFarmer">--</strong>
@@ -979,6 +983,22 @@
                         <div class="detail-box">
                             <span class="detail-label">Current Status</span>
                             <div id="modalTicketStatusBadge">--</div>
+                        </div>
+                    </div>
+
+                    <!-- Ticket Timestamps Grid -->
+                    <div class="detail-summary-grid mb-4" style="grid-template-columns: repeat(3, 1fr);">
+                        <div class="detail-box">
+                            <span class="detail-label">Reported (Created)</span>
+                            <strong id="modalTicketCreatedAt" class="text-sm">--</strong>
+                        </div>
+                        <div class="detail-box">
+                            <span class="detail-label">Last Updated</span>
+                            <strong id="modalTicketUpdatedAt" class="text-sm">--</strong>
+                        </div>
+                        <div class="detail-box">
+                            <span class="detail-label">Closed Date</span>
+                            <strong id="modalTicketClosedAt" class="text-sm">--</strong>
                         </div>
                     </div>
 
@@ -1041,6 +1061,134 @@
                             <button type="submit" class="btn btn-success" id="saveAdvisoryBtn">
                                 <i data-lucide="save"></i>
                                 <span>Save Advisory & Update Ticket</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DIALOG: Edit Ticket Record -->
+    <div class="modal-backdrop hidden" id="ticketEditModal">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="modal-title">
+                        <i data-lucide="edit-3" class="text-emerald"></i>
+                        <div>
+                            <h3 id="modalEditTicketTitle">Edit Ticket Record</h3>
+                            <span class="text-muted text-sm">Update crop problem report details and officer assignment</span>
+                        </div>
+                    </div>
+                    <button class="btn-icon" onclick="app.closeModal('ticketEditModal')"><i data-lucide="x"></i></button>
+                </div>
+
+                <div class="modal-body">
+                    <form id="ticketEditForm">
+                        <input type="hidden" id="editTicketId" value="">
+                        
+                        <div class="form-grid-2">
+                            <div class="form-group">
+                                <label for="editTicketFarmerSelect" class="required-label">Farmer</label>
+                                <select id="editTicketFarmerSelect" class="form-control" required>
+                                    <option value="">-- Select Farmer --</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="editTicketOfficerSelect">Assigned Agricultural Officer</label>
+                                <select id="editTicketOfficerSelect" class="form-control">
+                                    <option value="">-- Unassigned --</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-grid-2 mt-3">
+                            <div class="form-group">
+                                <label for="editTicketCropName" class="required-label">Crop Name</label>
+                                <input type="text" id="editTicketCropName" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="editTicketStatusSelect" class="required-label">Ticket Status</label>
+                                <select id="editTicketStatusSelect" class="form-control" required>
+                                        <option value="">-- Select Status --</option>
+                                    <option value="OPEN">OPEN — New Unresolved Report</option>
+                                    <option value="IN_PROGRESS">IN_PROGRESS — Under Officer Review</option>
+                                    <option value="RESOLVED">RESOLVED — Recommendation Provided</option>
+                                    <option value="CLOSED">CLOSED — Completed</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group mt-3">
+                            <label for="editTicketSymptoms" class="required-label">Observed Symptoms / Problem Description</label>
+                            <textarea id="editTicketSymptoms" class="form-control" rows="3" required></textarea>
+                        </div>
+
+                        <div class="form-group mt-3">
+                            <label for="editTicketRecommendationText">Official Advisory / Treatment Recommendation</label>
+                            <textarea id="editTicketRecommendationText" class="form-control" rows="3" placeholder="Recommendation notes..."></textarea>
+                        </div>
+
+                        <div id="ticketEditError" class="edit-form-error hidden" role="alert"></div>
+
+                        <div class="form-actions align-right mt-4">
+                            <button type="button" class="btn btn-secondary" onclick="app.closeModal('ticketEditModal')">Cancel</button>
+                            <button type="submit" class="btn btn-success" id="saveEditTicketBtn">
+                                <i data-lucide="check-circle"></i>
+                                <span>Save Changes</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DIALOG: Edit Photo Attachment -->
+    <div class="modal-backdrop hidden" id="photoEditModal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="modal-title">
+                        <i data-lucide="image" class="text-emerald"></i>
+                        <div>
+                            <h3 id="modalEditPhotoTitle">Edit Diagnostic Photo Record</h3>
+                            <span class="text-muted text-sm">Update associated ticket link or image URL</span>
+                        </div>
+                    </div>
+                    <button class="btn-icon" onclick="app.closeModal('photoEditModal')"><i data-lucide="x"></i></button>
+                </div>
+
+                <div class="modal-body">
+                    <form id="photoEditForm">
+                        <input type="hidden" id="editPhotoId" value="">
+                        
+                        <div class="form-group">
+                            <label for="editPhotoTicketSelect" class="required-label">Associated Problem Ticket</label>
+                            <select id="editPhotoTicketSelect" class="form-control" required>
+                                <option value="">-- Choose Ticket --</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group mt-3">
+                            <label for="editPhotoUrlInput" class="required-label">Photo Direct URL</label>
+                            <input type="url" id="editPhotoUrlInput" class="form-control" placeholder="https://..." required>
+                        </div>
+
+                        <!-- Live Edit Image Preview Box -->
+                        <div id="photoEditPreviewBox" class="photo-preview-box mt-3 hidden">
+                            <img id="photoEditPreviewImg" src="" alt="Photo Preview">
+                        </div>
+                        <p id="photoEditPreviewError" class="photo-preview-error hidden" role="status">This URL could not be loaded as an image.</p>
+
+                        <div id="photoEditError" class="edit-form-error hidden" role="alert"></div>
+
+                        <div class="form-actions align-right mt-4">
+                            <button type="button" class="btn btn-secondary" onclick="app.closeModal('photoEditModal')">Cancel</button>
+                            <button type="submit" class="btn btn-success" id="saveEditPhotoBtn">
+                                <i data-lucide="check-circle"></i>
+                                <span>Save Photo Record</span>
                             </button>
                         </div>
                     </form>

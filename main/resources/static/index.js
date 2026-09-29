@@ -86,7 +86,9 @@ const app = {
         document.getElementById('farmerForm')?.addEventListener('submit', (e) => this.handleFarmerSubmit(e));
         document.getElementById('officerForm')?.addEventListener('submit', (e) => this.handleOfficerSubmit(e));
         document.getElementById('newTicketForm')?.addEventListener('submit', (e) => this.handleTicketSubmit(e));
+        document.getElementById('ticketEditForm')?.addEventListener('submit', (e) => this.handleTicketEditSubmit(e));
         document.getElementById('photoForm')?.addEventListener('submit', (e) => this.handlePhotoSubmit(e));
+        document.getElementById('photoEditForm')?.addEventListener('submit', (e) => this.handlePhotoEditSubmit(e));
         document.getElementById('ticketAdvisoryForm')?.addEventListener('submit', (e) => this.handleAdvisorySubmit(e));
 
         // Farmer select change on ticket form -> filter officers by region
@@ -104,7 +106,7 @@ const app = {
         document.getElementById('ticketStatusFilter')?.addEventListener('change', () => this.renderTickets());
         document.getElementById('ticketOfficerFilter')?.addEventListener('change', () => this.renderTickets());
 
-        // Live Photo URL preview listener on photo form
+        // Live Photo URL preview listener on photo forms
         document.getElementById('photoUrlInput')?.addEventListener('input', (e) => {
             const url = e.target.value.trim();
             const previewBox = document.getElementById('photoFormPreview');
@@ -115,6 +117,17 @@ const app = {
             } else if (previewBox) {
                 previewBox.classList.add('hidden');
             }
+        });
+
+        document.getElementById('editPhotoUrlInput')?.addEventListener('input', (e) => {
+            this.previewEditPhoto(e.target.value.trim());
+        });
+
+        ['ticketEditForm', 'photoEditForm'].forEach(formId => {
+            document.getElementById(formId)?.addEventListener('input', () => {
+                const errorId = formId === 'ticketEditForm' ? 'ticketEditError' : 'photoEditError';
+                document.getElementById(errorId)?.classList.add('hidden');
+            });
         });
     },
 
@@ -136,25 +149,28 @@ const app = {
 
         try {
             const response = await fetch(url, options);
-            
-            if (!response.ok) {
-                let errorMsg = `HTTP Error ${response.status}: ${response.statusText}`;
+            const responseText = await response.text();
+            let responseData = null;
+            if (responseText) {
                 try {
-                    const errObj = await response.json();
-                    if (errObj && errObj.message) errorMsg = errObj.message;
+                    responseData = JSON.parse(responseText);
                 } catch (e) {
-                    const errText = await response.text();
-                    if (errText) errorMsg = errText;
+                    responseData = null;
                 }
+            }
+
+            if (!response.ok) {
+                const errorMsg = responseData && (responseData.message || responseData.error || responseData.detail) ||
+                    responseText || `HTTP Error ${response.status}: ${response.statusText}`;
                 throw new Error(errorMsg);
             }
 
             // Handle empty responses or delete string responses
             const contentType = response.headers.get('content-type');
             if (contentType && contentType.includes('application/json')) {
-                return await response.json();
+                return responseData;
             } else {
-                return await response.text();
+                return responseText;
             }
         } catch (err) {
             console.error(`API Failure [${method} ${url}]:`, err);
@@ -221,18 +237,37 @@ const app = {
         document.getElementById('navOfficersCount').textContent = this.state.officers.length;
         document.getElementById('navPhotosCount').textContent = this.state.photos.length;
 
-        // Check Escalated Alert Banner
-        const escalatedTickets = this.state.tickets.filter(t => t.escalated);
+        // Only unresolved escalations require active attention.
+        const activeEscalations = this.state.tickets.filter(ticket => this.isActiveEscalation(ticket));
         const banner = document.getElementById('escalatedAlertBanner');
         const alertText = document.getElementById('escalatedAlertText');
+        const alertSub = document.getElementById('escalatedAlertSub');
         if (banner && alertText) {
-            if (escalatedTickets.length > 0) {
-                alertText.textContent = `High Priority Alert: ${escalatedTickets.length} escalated crop disease report(s) require urgent officer recommendation.`;
+            if (activeEscalations.length > 0) {
+            alertText.textContent = 'High Priority Alert:';
+            if (alertSub) alertSub.textContent = `${activeEscalations.length} unresolved escalated crop disease report(s) require urgent attention.`;
                 banner.classList.remove('hidden');
             } else {
                 banner.classList.add('hidden');
             }
         }
+    },
+
+    normalizeTicketStatus: function (status) {
+        return String(status || '').trim().toUpperCase();
+    },
+
+    isActiveEscalation: function (ticket) {
+        return ticket.escalated === true &&
+            !['RESOLVED', 'CLOSED'].includes(this.normalizeTicketStatus(ticket.status));
+    },
+
+    getEscalationBadgeHTML: function (ticket) {
+        if (ticket.escalated !== true) return '<span class="text-muted">Normal</span>';
+        if (['RESOLVED', 'CLOSED'].includes(this.normalizeTicketStatus(ticket.status))) {
+            return '<span class="badge badge-subtle">Previously Escalated</span>';
+        }
+        return '<span class="badge badge-escalated">ACTIVE ESCALATION</span>';
     },
 
     /**
@@ -264,6 +299,15 @@ const app = {
             if (currentVal) farmerSelect.value = currentVal;
         }
 
+        const editFarmerSelect = document.getElementById('editTicketFarmerSelect');
+        if (editFarmerSelect) {
+            editFarmerSelect.innerHTML = '<option value="">-- Select Farmer --</option>' +
+                this.state.farmers.map(f => {
+                    const regName = f.region ? f.region.region_name : 'No Region';
+                    return `<option value="${f.farmer_id}">${this.escapeHTML(f.farmer_name)} (${this.escapeHTML(regName)})</option>`;
+                }).join('');
+        }
+
         // Ticket Form Officer Select & Modal Officer Select
         this.populateOfficerSelects();
 
@@ -277,6 +321,17 @@ const app = {
                     return `<option value="${t.ticket_id}">Ticket #${t.ticket_id} - ${this.escapeHTML(t.crop_name || 'Crop')} (${this.escapeHTML(farmerName)})</option>`;
                 }).join('');
             if (currentVal) photoTicketSelect.value = currentVal;
+        }
+
+        const editPhotoTicketSelect = document.getElementById('editPhotoTicketSelect');
+        if (editPhotoTicketSelect) {
+            const currentVal = editPhotoTicketSelect.value;
+            editPhotoTicketSelect.innerHTML = '<option value="">-- Choose Ticket --</option>' +
+                this.state.tickets.map(t => {
+                    const farmerName = t.farmer ? t.farmer.farmer_name : 'Unknown Farmer';
+                    return `<option value="${t.ticket_id}">Ticket #${t.ticket_id} - ${this.escapeHTML(t.crop_name || 'Crop')} (${this.escapeHTML(farmerName)})</option>`;
+                }).join('');
+            if (currentVal) editPhotoTicketSelect.value = currentVal;
         }
 
         // Ticket Officer Filter
@@ -315,6 +370,8 @@ const app = {
 
         if (officerSelect) officerSelect.innerHTML = optionsHtml;
         if (modalOfficerSelect) modalOfficerSelect.innerHTML = optionsHtml;
+        const editOfficerSelect = document.getElementById('editTicketOfficerSelect');
+        if (editOfficerSelect) editOfficerSelect.innerHTML = optionsHtml;
     },
 
     /**
@@ -420,7 +477,8 @@ const app = {
             const farmerName = t.farmer ? t.farmer.farmer_name : 'Unspecified';
             const officerName = t.officer ? t.officer.officer_name : '<span class="text-muted">Unassigned</span>';
             const statusBadge = this.getStatusBadgeHTML(t.status);
-            const escBadge = t.escalated ? '<span class="badge badge-escalated">HIGH PRIORITY</span>' : '<span class="text-muted">Normal</span>';
+            const escBadge = this.getEscalationBadgeHTML(t);
+            const reportedDate = t.created_at ? this.formatDate(t.created_at) : 'N/A';
 
             return `
                 <tr>
@@ -431,6 +489,7 @@ const app = {
                     <td>${this.escapeHTML(officerName)}</td>
                     <td>${statusBadge}</td>
                     <td>${escBadge}</td>
+                    <td><span class="text-xs text-muted">${reportedDate}</span></td>
                     <td>
                         <button class="btn btn-xs btn-outline-primary" onclick="app.openTicketDetailModal(${t.ticket_id})">View / Advise</button>
                     </td>
@@ -560,6 +619,7 @@ const app = {
         tbody.innerHTML = filtered.map(o => {
             const regionName = o.region ? `${o.region.region_name} (${o.region.district})` : '<span class="text-muted">Unassigned</span>';
             const activeBadge = o.active !== false ? '<span class="badge badge-resolved">ACTIVE</span>' : '<span class="badge badge-subtle">INACTIVE</span>';
+            const registeredDate = o.created_at ? this.formatDate(o.created_at) : 'N/A';
 
             return `
                 <tr>
@@ -570,6 +630,7 @@ const app = {
                     <td>${this.escapeHTML(o.email || 'N/A')}</td>
                     <td>${this.escapeHTML(o.phone || 'N/A')}</td>
                     <td>${activeBadge}</td>
+                    <td><span class="text-xs text-muted">${registeredDate}</span></td>
                     <td class="text-right">
                         <button class="btn btn-xs btn-secondary" onclick="app.editOfficer(${o.officer_id})"><i data-lucide="edit-2"></i> Edit</button>
                         <button class="btn btn-xs btn-outline-danger" onclick="app.deleteOfficer(${o.officer_id})"><i data-lucide="trash-2"></i> Delete</button>
@@ -602,10 +663,12 @@ const app = {
                                (t.ticket_id + '').includes(query);
 
             let matchStatus = true;
-            if (statusFilter === 'ESCALATED') {
+            if (statusFilter === 'ACTIVE_ESCALATIONS' || statusFilter === 'ESCALATED') {
+                matchStatus = this.isActiveEscalation(t);
+            } else if (statusFilter === 'ESCALATION_HISTORY') {
                 matchStatus = t.escalated === true;
             } else if (statusFilter) {
-                matchStatus = (t.status || '').toUpperCase() === statusFilter;
+                matchStatus = this.normalizeTicketStatus(t.status) === statusFilter;
             }
 
             const matchOfficer = !officerFilter || (t.officer && t.officer.officer_id == officerFilter);
@@ -624,8 +687,19 @@ const app = {
             const farmerName = t.farmer ? t.farmer.farmer_name : 'Unknown';
             const officerName = t.officer ? t.officer.officer_name : '<span class="text-muted">Unassigned</span>';
             const statusBadge = this.getStatusBadgeHTML(t.status);
-            const escBadge = t.escalated ? '<span class="badge badge-escalated">🚨 ESCALATED</span>' : '<span class="text-muted">Normal</span>';
+            const escBadge = this.getEscalationBadgeHTML(t);
             const recommendationText = t.recommendation ? `<span class="text-emerald"><i data-lucide="check-circle-2"></i> ${this.escapeHTML(t.recommendation.substring(0, 45))}...</span>` : '<span class="text-muted font-italic">Pending Advisory</span>';
+
+            const createdStr = t.created_at ? `Created: ${this.formatDate(t.created_at)}` : '';
+            const updatedStr = t.updated_at ? `Updated: ${this.formatDate(t.updated_at)}` : '';
+            const closedStr = t.closed_at ? `Closed: ${this.formatDate(t.closed_at)}` : '';
+            const timeHtml = `
+                <div class="text-xs text-muted" style="line-height:1.3;">
+                    ${createdStr ? `<div>${this.escapeHTML(createdStr)}</div>` : ''}
+                    ${updatedStr ? `<div>${this.escapeHTML(updatedStr)}</div>` : ''}
+                    ${closedStr ? `<div class="text-danger font-semibold">${this.escapeHTML(closedStr)}</div>` : ''}
+                </div>
+            `;
 
             return `
                 <tr>
@@ -637,9 +711,13 @@ const app = {
                     <td>${statusBadge}</td>
                     <td>${recommendationText}</td>
                     <td>${escBadge}</td>
+                    <td>${timeHtml}</td>
                     <td class="text-right">
-                        <button class="btn btn-xs btn-primary" onclick="app.openTicketDetailModal(${t.ticket_id})"><i data-lucide="clipboard-check"></i> View / Advise</button>
-                        <button class="btn btn-xs btn-outline-danger" onclick="app.deleteTicket(${t.ticket_id})"><i data-lucide="trash-2"></i></button>
+                        <div class="ticket-row-actions">
+                            <button class="btn btn-xs btn-edit-record" onclick="app.openTicketEditModal(${t.ticket_id})"><i data-lucide="edit-2"></i> Edit</button>
+                            <button class="btn btn-xs btn-primary" onclick="app.openTicketDetailModal(${t.ticket_id})"><i data-lucide="clipboard-check"></i> View / Advise</button>
+                            <button class="btn btn-xs btn-outline-danger" onclick="app.deleteTicket(${t.ticket_id})" aria-label="Delete ticket ${t.ticket_id}" title="Delete ticket"><i data-lucide="trash-2"></i></button>
+                        </div>
                     </td>
                 </tr>
             `;
@@ -679,8 +757,9 @@ const app = {
                         <div class="photo-card-title">Ticket #${ticketId} — ${this.escapeHTML(cropName)}</div>
                         <div class="photo-card-meta">Farmer: ${this.escapeHTML(farmerName)}</div>
                         <div class="photo-card-meta text-xs">Uploaded: ${p.uploaded_at ? this.formatDate(p.uploaded_at) : 'N/A'}</div>
-                        <div class="d-flex-between mt-3">
+                        <div class="photo-card-actions mt-3">
                             <button class="btn btn-xs btn-outline-primary" onclick="app.openTicketDetailModal(${ticketId})">View Ticket</button>
+                            <button class="btn btn-xs btn-edit-record" onclick="app.openPhotoEditModal(${p.photo_id})"><i data-lucide="edit-2"></i> Edit</button>
                             <button class="btn btn-xs btn-outline-danger" onclick="app.deletePhoto(${p.photo_id})"><i data-lucide="trash-2"></i> Delete</button>
                         </div>
                     </div>
@@ -836,13 +915,16 @@ const app = {
         const id = document.getElementById('farmerFormId').value;
         const regionId = document.getElementById('farmerRegionSelect').value;
 
+        const existingFarmer = id ? this.state.farmers.find(f => f.farmer_id == id) : null;
+        const createdAt = existingFarmer && existingFarmer.created_at ? existingFarmer.created_at : this.getLocalDateTimeISO();
+
         const payload = {
             farmer_name: document.getElementById('farmerName').value.trim(),
             phone: document.getElementById('farmerPhone').value.trim(),
             email: document.getElementById('farmerEmail').value.trim(),
             address: document.getElementById('farmerAddress').value.trim(),
             region: regionId ? { region_id: parseInt(regionId) } : null,
-            created_at: id ? undefined : new Date().toISOString()
+            created_at: createdAt
         };
 
         const btn = document.getElementById('farmerSaveBtn');
@@ -908,6 +990,9 @@ const app = {
         const id = document.getElementById('officerFormId').value;
         const regionId = document.getElementById('officerRegionSelect').value;
 
+        const existingOfficer = id ? this.state.officers.find(o => o.officer_id == id) : null;
+        const createdAt = existingOfficer && existingOfficer.created_at ? existingOfficer.created_at : this.getLocalDateTimeISO();
+
         const payload = {
             officer_name: document.getElementById('officerName').value.trim(),
             email: document.getElementById('officerEmail').value.trim(),
@@ -915,7 +1000,7 @@ const app = {
             specialization: document.getElementById('officerSpecialization').value,
             region: regionId ? { region_id: parseInt(regionId) } : null,
             active: document.getElementById('officerActive').checked,
-            created_at: id ? undefined : new Date().toISOString()
+            created_at: createdAt
         };
 
         const btn = document.getElementById('officerSaveBtn');
@@ -989,16 +1074,18 @@ const app = {
             return;
         }
 
-        const now = new Date().toISOString();
+        const now = this.getLocalDateTimeISO();
+        const status = document.getElementById('ticketStatus').value || 'OPEN';
         const payload = {
             farmer: { farmer_id: parseInt(farmerId) },
             officer: officerId ? { officer_id: parseInt(officerId) } : null,
             crop_name: document.getElementById('ticketCropName').value.trim(),
             symptoms: document.getElementById('ticketSymptoms').value.trim(),
-            status: document.getElementById('ticketStatus').value || 'OPEN',
+            status: status,
             escalated: document.getElementById('ticketEscalated').checked,
             created_at: now,
-            updated_at: now
+            updated_at: now,
+            closed_at: status === 'CLOSED' ? now : null
         };
 
         const btn = document.getElementById('submitTicketBtn');
@@ -1064,6 +1151,92 @@ const app = {
         }
     },
 
+    openTicketEditModal: function (ticketId) {
+        const ticket = this.state.tickets.find(item => item.ticket_id == ticketId);
+        if (!ticket) {
+            this.showToast(`Ticket #${ticketId} is no longer available. Refresh the records and try again.`, 'error');
+            return;
+        }
+
+        this.populateSelectDropdowns();
+        const farmerSelect = document.getElementById('editTicketFarmerSelect');
+        const officerSelect = document.getElementById('editTicketOfficerSelect');
+        if (ticket.farmer && ![...farmerSelect.options].some(option => option.value == ticket.farmer.farmer_id)) {
+            farmerSelect.add(new Option(ticket.farmer.farmer_name || `Farmer #${ticket.farmer.farmer_id}`, ticket.farmer.farmer_id));
+        }
+        if (ticket.officer && ![...officerSelect.options].some(option => option.value == ticket.officer.officer_id)) {
+            officerSelect.add(new Option(ticket.officer.officer_name || `Officer #${ticket.officer.officer_id}`, ticket.officer.officer_id));
+        }
+
+        document.getElementById('editTicketId').value = ticket.ticket_id;
+        document.getElementById('modalEditTicketTitle').textContent = `Edit Ticket #${ticket.ticket_id}`;
+        farmerSelect.value = ticket.farmer ? ticket.farmer.farmer_id : '';
+        officerSelect.value = ticket.officer ? ticket.officer.officer_id : '';
+        document.getElementById('editTicketCropName').value = ticket.crop_name || '';
+        document.getElementById('editTicketSymptoms').value = ticket.symptoms || '';
+        document.getElementById('editTicketRecommendationText').value = ticket.recommendation || '';
+
+        const statusSelect = document.getElementById('editTicketStatusSelect');
+        const ticketStatus = ticket.status == null ? '' : String(ticket.status).toUpperCase();
+        if (ticketStatus && ![...statusSelect.options].some(option => option.value === ticketStatus)) {
+            statusSelect.add(new Option(ticketStatus, ticketStatus));
+        }
+        statusSelect.value = ticketStatus;
+        document.getElementById('ticketEditError').classList.add('hidden');
+        document.getElementById('ticketEditModal').classList.remove('hidden');
+        if (window.lucide) window.lucide.createIcons();
+    },
+
+    handleTicketEditSubmit: async function (e) {
+        e.preventDefault();
+        const id = document.getElementById('editTicketId').value;
+        const ticket = this.state.tickets.find(item => item.ticket_id == id);
+        const errorBox = document.getElementById('ticketEditError');
+        const farmerId = document.getElementById('editTicketFarmerSelect').value;
+        const cropName = document.getElementById('editTicketCropName').value.trim();
+        const symptoms = document.getElementById('editTicketSymptoms').value.trim();
+        const status = document.getElementById('editTicketStatusSelect').value;
+        if (!ticket || !farmerId || !cropName || !symptoms || !status) {
+            errorBox.textContent = 'Select a farmer and status, and enter both a crop name and symptom description.';
+            errorBox.classList.remove('hidden');
+            return;
+        }
+
+        const officerId = document.getElementById('editTicketOfficerSelect').value;
+        const payload = {
+            ticket_id: ticket.ticket_id,
+            farmer: { farmer_id: Number(farmerId) },
+            officer: officerId ? { officer_id: Number(officerId) } : null,
+            crop_name: cropName,
+            symptoms: symptoms,
+            status: status,
+            recommendation: document.getElementById('editTicketRecommendationText').value.trim(),
+            created_at: ticket.created_at,
+            updated_at: ticket.updated_at,
+            closed_at: ticket.closed_at,
+            escalated: ticket.escalated
+        };
+
+        const button = document.getElementById('saveEditTicketBtn');
+        const buttonLabel = button.querySelector('span');
+        button.disabled = true;
+        buttonLabel.textContent = 'Saving...';
+        errorBox.classList.add('hidden');
+        try {
+            const result = await this.apiCall(`${this.endpoints.ticket}/update/${id}`, 'PUT', payload);
+            if (result == null || result === '') throw new Error('The server returned no updated ticket. It may have been removed.');
+            this.closeModal('ticketEditModal');
+            this.showToast(`Ticket #${id} updated successfully.`, 'success');
+            await this.fetchAllData();
+        } catch (err) {
+            errorBox.textContent = `Could not update ticket: ${err.message}`;
+            errorBox.classList.remove('hidden');
+        } finally {
+            button.disabled = false;
+            buttonLabel.textContent = 'Save Changes';
+        }
+    },
+
     /**
      * Submit Photo Link Form (POST /photo/create)
      */
@@ -1080,7 +1253,7 @@ const app = {
         const payload = {
             ticket: { ticket_id: parseInt(ticketId) },
             photo_url: photoUrl,
-            uploaded_at: new Date().toISOString()
+            uploaded_at: this.getLocalDateTimeISO()
         };
 
         const btn = document.getElementById('photoSaveBtn');
@@ -1110,6 +1283,86 @@ const app = {
     resetPhotoForm: function () {
         document.getElementById('photoForm')?.reset();
         document.getElementById('photoFormPreview')?.classList.add('hidden');
+    },
+
+    openPhotoEditModal: function (photoId) {
+        const photo = this.state.photos.find(item => item.photo_id == photoId);
+        if (!photo) {
+            this.showToast(`Photo #${photoId} is no longer available. Refresh the records and try again.`, 'error');
+            return;
+        }
+
+        this.populateSelectDropdowns();
+        const ticketSelect = document.getElementById('editPhotoTicketSelect');
+        if (photo.ticket && ![...ticketSelect.options].some(option => option.value == photo.ticket.ticket_id)) {
+            ticketSelect.add(new Option(`Ticket #${photo.ticket.ticket_id}`, photo.ticket.ticket_id));
+        }
+        document.getElementById('editPhotoId').value = photo.photo_id;
+        ticketSelect.value = photo.ticket ? photo.ticket.ticket_id : '';
+        document.getElementById('editPhotoUrlInput').value = photo.photo_url || '';
+        document.getElementById('photoEditError').classList.add('hidden');
+        this.previewEditPhoto(photo.photo_url || '');
+        document.getElementById('photoEditModal').classList.remove('hidden');
+        if (window.lucide) window.lucide.createIcons();
+    },
+
+    previewEditPhoto: function (url) {
+        const previewBox = document.getElementById('photoEditPreviewBox');
+        const previewImg = document.getElementById('photoEditPreviewImg');
+        const error = document.getElementById('photoEditPreviewError');
+        if (!previewBox || !previewImg || !error) return;
+
+        previewBox.classList.add('hidden');
+        error.classList.add('hidden');
+        previewImg.onload = () => {
+            previewBox.classList.remove('hidden');
+            error.classList.add('hidden');
+        };
+        previewImg.onerror = () => {
+            previewBox.classList.add('hidden');
+            error.classList.remove('hidden');
+        };
+        if (url) previewImg.src = url;
+        else previewImg.removeAttribute('src');
+    },
+
+    handlePhotoEditSubmit: async function (e) {
+        e.preventDefault();
+        const id = document.getElementById('editPhotoId').value;
+        const photo = this.state.photos.find(item => item.photo_id == id);
+        const ticketId = document.getElementById('editPhotoTicketSelect').value;
+        const photoUrl = document.getElementById('editPhotoUrlInput').value.trim();
+        const errorBox = document.getElementById('photoEditError');
+        if (!photo || !ticketId || !photoUrl) {
+            errorBox.textContent = 'Select an associated ticket and provide a valid photo URL.';
+            errorBox.classList.remove('hidden');
+            return;
+        }
+
+        const payload = {
+            photo_id: photo.photo_id,
+            ticket: { ticket_id: Number(ticketId) },
+            photo_url: photoUrl,
+            uploaded_at: photo.uploaded_at
+        };
+        const button = document.getElementById('saveEditPhotoBtn');
+        const buttonLabel = button.querySelector('span');
+        button.disabled = true;
+        buttonLabel.textContent = 'Saving...';
+        errorBox.classList.add('hidden');
+        try {
+            const result = await this.apiCall(`${this.endpoints.photo}/update/${id}`, 'PUT', payload);
+            if (result == null || result === '') throw new Error('The server returned no updated photo. It may have been removed.');
+            this.closeModal('photoEditModal');
+            this.showToast(`Photo #${id} updated successfully.`, 'success');
+            await this.fetchAllData();
+        } catch (err) {
+            errorBox.textContent = `Could not update photo: ${err.message}`;
+            errorBox.classList.remove('hidden');
+        } finally {
+            button.disabled = false;
+            buttonLabel.textContent = 'Save Photo Record';
+        }
     },
 
     deletePhoto: async function (id) {
@@ -1146,12 +1399,17 @@ const app = {
         document.getElementById('modalTicketStatusBadge').innerHTML = this.getStatusBadgeHTML(ticket.status);
         document.getElementById('modalTicketSymptoms').textContent = ticket.symptoms || 'No symptoms specified.';
 
+        // Populate Modal Timestamps
+        document.getElementById('modalTicketCreatedAt').textContent = ticket.created_at ? this.formatDate(ticket.created_at) : 'N/A';
+        document.getElementById('modalTicketUpdatedAt').textContent = ticket.updated_at ? this.formatDate(ticket.updated_at) : 'N/A';
+        document.getElementById('modalTicketClosedAt').textContent = ticket.closed_at ? this.formatDate(ticket.closed_at) : 'Not Closed';
+
         // Photos Strip
         const photoStrip = document.getElementById('modalTicketPhotosStrip');
         const ticketPhotos = this.state.photos.filter(p => p.ticket && p.ticket.ticket_id === ticketId);
         if (ticketPhotos.length > 0) {
             photoStrip.innerHTML = ticketPhotos.map(p => 
-                `<img src="${this.escapeHTML(p.photo_url)}" alt="Ticket Photo" class="modal-photo-thumb" onerror="app.handleImageError(this)" title="Uploaded ${p.uploaded_at || ''}">`
+                `<img src="${this.escapeHTML(p.photo_url)}" alt="Ticket Photo" class="modal-photo-thumb" onerror="app.handleImageError(this)" title="Uploaded ${p.uploaded_at ? this.formatDate(p.uploaded_at) : ''}">`
             ).join('');
         } else {
             photoStrip.innerHTML = '<span class="text-muted text-sm">No photos attached to this ticket.</span>';
@@ -1196,7 +1454,17 @@ const app = {
         const recommendation = document.getElementById('modalRecommendationText').value.trim();
         const escalated = document.getElementById('modalEscalatedCheck').checked;
 
-        const now = new Date().toISOString();
+        const now = this.getLocalDateTimeISO();
+        const createdAt = ticket.created_at || now;
+        const updatedAt = now;
+        let closedAt = null;
+
+        if (newStatus === 'CLOSED') {
+            closedAt = ticket.closed_at ? ticket.closed_at : now;
+        } else {
+            closedAt = null;
+        }
+
         const payload = {
             farmer: ticket.farmer ? { farmer_id: ticket.farmer.farmer_id } : null,
             officer: officerId ? { officer_id: parseInt(officerId) } : null,
@@ -1205,9 +1473,9 @@ const app = {
             status: newStatus,
             recommendation: recommendation,
             escalated: escalated,
-            created_at: ticket.created_at,
-            updated_at: now,
-            closed_at: (newStatus === 'CLOSED' || newStatus === 'RESOLVED') ? (ticket.closed_at || now) : null
+            created_at: createdAt,
+            updated_at: updatedAt,
+            closed_at: closedAt
         };
 
         const btn = document.getElementById('saveAdvisoryBtn');
@@ -1278,21 +1546,40 @@ const app = {
     },
 
     /**
+     * Utility: Generate local ISO string (YYYY-MM-DDTHH:mm:ss) matching Spring Boot LocalDateTime
+     */
+    getLocalDateTimeISO: function (d = new Date()) {
+        if (!d) return null;
+        const date = new Date(d);
+        if (isNaN(date.getTime())) return null;
+        const pad = (num) => String(num).padStart(2, '0');
+        const year = date.getFullYear();
+        const month = pad(date.getMonth() + 1);
+        const day = pad(date.getDate());
+        const hours = pad(date.getHours());
+        const minutes = pad(date.getMinutes());
+        const seconds = pad(date.getSeconds());
+        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+    },
+
+    /**
      * Utility: Date Formatter
      */
     formatDate: function (isoString) {
+        if (!isoString) return 'N/A';
         try {
             const date = new Date(isoString);
-            if (isNaN(date.getTime())) return isoString;
-            return date.toLocaleDateString('en-US', {
+            if (isNaN(date.getTime())) return String(isoString);
+            return date.toLocaleString('en-US', {
                 year: 'numeric',
                 month: 'short',
                 day: 'numeric',
                 hour: '2-digit',
-                minute: '2-digit'
+                minute: '2-digit',
+                hour12: true
             });
         } catch (e) {
-            return isoString;
+            return String(isoString);
         }
     }
 };
