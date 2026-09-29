@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CropAdvisor — Crop Disease Reporting & Advisory System</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <!-- Top Header Navigation -->
+    <header class="top-bar">
+        <div class="brand-container">
+            <button class="mobile-toggle-btn" id="mobileMenuBtn" aria-label="Toggle Navigation Menu">
+                <i data-lucide="menu"></i>
+            </button>
+            <div class="brand-logo">
+                <div class="logo-icon"><i data-lucide="sprout"></i></div>
+                <div class="logo-text">
+                    <h1>CropAdvisor</h1>
+                    <span class="logo-tagline">Agricultural Reporting & Advisory System</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="header-actions">
+            <div class="system-status" title="Backend Database Status">
+                <span class="status-dot online"></span>
+                <span class="status-label">MySQL Connected</span>
+            </div>
+            <div class="live-clock" id="liveClock">--:--:--</div>
+            <button class="btn btn-secondary btn-sm" id="globalRefreshBtn" title="Reload Database Records">
+                <i data-lucide="refresh-cw"></i>
+                <span>Refresh Data</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Application Layout -->
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="appSidebar">
+            <div class="nav-section-title">MAIN NAVIGATION</div>
+            <nav class="nav-menu">
+                <button class="nav-item active" data-tab="sec-dashboard">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </button>
+                <button class="nav-item" data-tab="sec-tickets-list">
+                    <i data-lucide="clipboard-list"></i>
+                    <span>Ticket Advisory</span>
+                    <span class="badge badge-pill badge-primary ml-auto" id="navOpenTicketsCount">0</span>
+                </button>
+                <button class="nav-item" data-tab="sec-tickets-new">
+                    <i data-lucide="plus-circle"></i>
+                    <span>Report Problem</span>
+                </button>
+            </nav>
+
+            <div class="nav-section-title">ENTITIES & MANAGEMENT</div>
+            <nav class="nav-menu">
+                <button class="nav-item" data-tab="sec-regions">
+                    <i data-lucide="map-pin"></i>
+                    <span>Regions</span>
+                    <span class="badge badge-subtle ml-auto" id="navRegionsCount">0</span>
+                </button>
+                <button class="nav-item" data-tab="sec-farmers">
+                    <i data-lucide="users"></i>
+                    <span>Farmers</span>
+                    <span class="badge badge-subtle ml-auto" id="navFarmersCount">0</span>
+                </button>
+                <button class="nav-item" data-tab="sec-officers">
+                    <i data-lucide="shield-check"></i>
+                    <span>Officers</span>
+                    <span class="badge badge-subtle ml-auto" id="navOfficersCount">0</span>
+                </button>
+                <button class="nav-item" data-tab="sec-photos">
+                    <i data-lucide="image"></i>
+                    <span>Photos</span>
+                    <span class="badge badge-subtle ml-auto" id="navPhotosCount">0</span>
+                </button>
+            </nav>
+
+            <div class="nav-section-title">SYSTEM</div>
+            <nav class="nav-menu">
+                <button class="nav-item" data-tab="sec-admin">
+                    <i data-lucide="settings-2"></i>
+                    <span>Admin Overview</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="system-meta">
+                    <i data-lucide="server"></i>
+                    <div>
+                        <div class="meta-title">Spring Boot Backend</div>
+                        <div class="meta-sub">Port 8080 &bull; REST API</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+
+            <!-- Global Banner for Escalated Tickets Alert -->
+            <div id="escalatedAlertBanner" class="alert-banner hidden">
+                <div class="alert-icon"><i data-lucide="alert-triangle"></i></div>
+                <div class="alert-body">
+                    <strong id="escalatedAlertText">Attention Needed:</strong> 
+                    <span id="escalatedAlertSub">There are high-priority escalated crop disease tickets requiring immediate officer advisory.</span>
+                </div>
+                <button class="btn btn-sm btn-outline-danger" onclick="app.switchTab('sec-tickets-list', {filter: 'ESCALATED'})">View Escalated</button>
+            </div>
+
+            <!-- SECTION A: DASHBOARD -->
+            <section id="sec-dashboard" class="tab-panel active">
+                <div class="page-header">
+                    <div>
+                        <h2 class="page-title">Executive Dashboard</h2>
+                        <p class="page-subtitle">Real-time overview of agricultural advisory network, farmer reports, and officer resolution progress.</p>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-primary" onclick="app.switchTab('sec-tickets-new')">
+                            <i data-lucide="file-plus"></i>
+                            <span>New Problem Report</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- KPI Cards Grid -->
+                <div class="kpi-grid">
+                    <div class="kpi-card text-emerald">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Total Regions</span>
+                            <div class="kpi-icon-wrapper"><i data-lucide="map"></i></div>
+                        </div>
+                        <div class="kpi-value" id="kpiTotalRegions">0</div>
+                        <div class="kpi-footer"><i data-lucide="globe"></i> Covered territories</div>
+                    </div>
+
+                    <div class="kpi-card text-blue">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Registered Farmers</span>
+                            <div class="kpi-icon-wrapper"><i data-lucide="user-check"></i></div>
+                        </div>
+                        <div class="kpi-value" id="kpiTotalFarmers">0</div>
+                        <div class="kpi-footer"><i data-lucide="users"></i> Active platform users</div>
+                    </div>
+
+                    <div class="kpi-card text-amber">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Agri Officers</span>
+                            <div class="kpi-icon-wrapper"><i data-lucide="award"></i></div>
+                        </div>
+                        <div class="kpi-value" id="kpiTotalOfficers">0</div>
+                        <div class="kpi-footer"><i data-lucide="shield"></i> Field advisory specialists</div>
+                    </div>
+
+                    <div class="kpi-card text-indigo">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Total Tickets</span>
+                            <div class="kpi-icon-wrapper"><i data-lucide="ticket"></i></div>
+                        </div>
+                        <div class="kpi-value" id="kpiTotalTickets">0</div>
+                        <div class="kpi-footer"><i data-lucide="activity"></i> Lifetime problem reports</div>
+                    </div>
+                </div>
+
+                <!-- Ticket Status Breakdown Bar & Secondary Widgets -->
+                <div class="dashboard-grid-layout">
+                    <!-- Left: Ticket Status Overview Card -->
+                    <div class="card status-overview-card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i data-lucide="pie-chart"></i>
+                                <h3>Ticket Lifecycle & Status Breakdown</h3>
+                            </div>
+                            <span class="badge badge-subtle">Real-time DB Counts</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="status-counter-grid">
+                                <div class="status-box status-open" onclick="app.switchTab('sec-tickets-list', {filter: 'OPEN'})">
+                                    <div class="status-num" id="dashOpenCount">0</div>
+                                    <div class="status-label"><span class="dot"></span> OPEN</div>
+                                </div>
+                                <div class="status-box status-progress" onclick="app.switchTab('sec-tickets-list', {filter: 'IN_PROGRESS'})">
+                                    <div class="status-num" id="dashProgressCount">0</div>
+                                    <div class="status-label"><span class="dot"></span> IN PROGRESS</div>
+                                </div>
+                                <div class="status-box status-resolved" onclick="app.switchTab('sec-tickets-list', {filter: 'RESOLVED'})">
+                                    <div class="status-num" id="dashResolvedCount">0</div>
+                                    <div class="status-label"><span class="dot"></span> RESOLVED</div>
+                                </div>
+                                <div class="status-box status-closed" onclick="app.switchTab('sec-tickets-list', {filter: 'CLOSED'})">
+                                    <div class="status-num" id="dashClosedCount">0</div>
+                                    <div class="status-label"><span class="dot"></span> CLOSED</div>
+                                </div>
+                            </div>
+
+                            <div class="progress-bar-container">
+                                <div class="progress-bar-title">Resolution Rate Breakdown</div>
+                                <div class="multi-progress-bar">
+                                    <div class="bar-segment bar-open" id="barSegmentOpen" style="width: 25%"></div>
+                                    <div class="bar-segment bar-progress" id="barSegmentProgress" style="width: 25%"></div>
+                                    <div class="bar-segment bar-resolved" id="barSegmentResolved" style="width: 25%"></div>
+                                    <div class="bar-segment bar-closed" id="barSegmentClosed" style="width: 25%"></div>
+                                </div>
+                                <div class="progress-bar-legend">
+                                    <span><span class="legend-dot open"></span> Open</span>
+                                    <span><span class="legend-dot progress"></span> In Progress</span>
+                                    <span><span class="legend-dot resolved"></span> Resolved</span>
+                                    <span><span class="legend-dot closed"></span> Closed</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Workflow Guide Card -->
+                    <div class="card workflow-card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i data-lucide="workflow"></i>
+                                <h3>Platform Operational Workflow</h3>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="workflow-steps">
+                                <div class="workflow-step">
+                                    <div class="step-icon"><i data-lucide="map-pin"></i></div>
+                                    <div class="step-content">
+                                        <h4>1. Region & User Setup</h4>
+                                        <p>Define agricultural regions, register local farmers and allocate district officers.</p>
+                                    </div>
+                                </div>
+                                <div class="workflow-step">
+                                    <div class="step-icon"><i data-lucide="alert-circle"></i></div>
+                                    <div class="step-content">
+                                        <h4>2. Problem Submission</h4>
+                                        <p>Farmer submits crop symptoms with optional photo attachments and region officer assignment.</p>
+                                    </div>
+                                </div>
+                                <div class="workflow-step">
+                                    <div class="step-icon"><i data-lucide="file-search"></i></div>
+                                    <div class="step-content">
+                                        <h4>3. Diagnosis & Advisory</h4>
+                                        <p>Officer evaluates symptoms, provides treatment recommendations and updates status.</p>
+                                    </div>
+                                </div>
+                                <div class="workflow-step">
+                                    <div class="step-icon"><i data-lucide="check-circle-2"></i></div>
+                                    <div class="step-content">
+                                        <h4>4. Resolution & Tracking</h4>
+                                        <p>Track ticket closure, photo records and escalation status across all districts.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Tickets Table -->
+                <div class="card table-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i data-lucide="clock"></i>
+                            <h3>Recent Problem Tickets</h3>
+                        </div>
+                        <button class="btn btn-link btn-sm" onclick="app.switchTab('sec-tickets-list')">View All Tickets &rarr;</button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Ticket ID</th>
+                                        <th>Farmer</th>
+                                        <th>Crop Name</th>
+                                        <th>Symptoms Overview</th>
+                                        <th>Assigned Officer</th>
+                                        <th>Status</th>
+                                        <th>Escalated</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dashboardRecentTicketsBody">
+                                    <tr><td colspan="8" class="text-center text-muted py-4">Loading tickets...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION B: REGION MANAGEMENT -->
+            <section id="sec-regions" class="tab-panel">
+                <div class="page-header">
+                    <div>
+                        <h2 class="page-title">Region Management</h2>
+                        <p class="page-subtitle">Add and update agricultural administrative zones, districts, states, and PIN codes.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="app.toggleCollapse('regionFormCard')">
+                        <i data-lucide="plus"></i>
+                        <span>Add New Region</span>
+                    </button>
+                </div>
+
+                <!-- Region Creation Collapsible Form -->
+                <div class="card form-card mb-4 hidden-collapsible" id="regionFormCard">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i data-lucide="map-pin"></i>
+                            <h3 id="regionFormTitle">Register New Region</h3>
+                        </div>
+                        <button class="btn-icon" onclick="app.toggleCollapse('regionFormCard')"><i data-lucide="x"></i></button>
+                    </div>
+                    <div class="card-body">
+                        <form id="regionForm">
+                            <input type="hidden" id="regFormId" value="">
+                            <div class="form-grid-4">
+                                <div class="form-group">
+                                    <label for="regName" class="required-label">Region Name</label>
+                                    <input type="text" id="regName" class="form-control" placeholder="e.g. Kaveri Delta Zone" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="regDistrict" class="required-label">District</label>
+                                    <input type="text" id="regDistrict" class="form-control" placeholder="e.g. Thanjavur" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="regState" class="required-label">State</label>
+                                    <input type="text" id="regState" class="form-control" placeholder="e.g. Tamil Nadu" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="regPinCode" class="required-label">PIN Code</label>
+                                    <input type="text" id="regPinCode" class="form-control" placeholder="e.g. 613001" required pattern="[0-9]{5,8}">
+                                </div>
+                            </div>
+                            <div class="form-actions align-right">
+                                <button type="button" class="btn btn-secondary" onclick="app.resetRegionForm()">Cancel</button>
+                                <button type="submit" class="btn btn-success" id="regSaveBtn">
+                                    <i data-lucide="check"></i>
+                                    <span>Save Region</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Regions List Card -->
+                <div class="card table-card">
+                    <div class="card-header search-header">
+                        <div class="search-box">
+                            <i data-lucide="search"></i>
+                            <input type="text" id="regionSearchInput" placeholder="Search regions by name, district, state or PIN..." class="form-control">
+                        </div>
+                        <div class="header-info">
+                            <span class="text-muted" id="regionCountText">0 regions found</span>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Region Name</th>
+                                        <th>District</th>
+                                        <th>State</th>
+                                        <th>PIN Code</th>
+                                        <th>Farmers</th>
+                                        <th>Officers</th>
+                                        <th class="text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="regionsTableBody">
+                                    <tr><td colspan="8" class="text-center text-muted py-4">Loading regions...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION C: FARMER MANAGEMENT -->
+            <section id="sec-farmers" class="tab-panel">
+                <div class="page-header">
+                    <div>
+                        <h2 class="page-title">Farmer Directory</h2>
+                        <p class="page-subtitle">Register and manage farmers, contact details, and their designated agricultural regions.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="app.toggleCollapse('farmerFormCard')">
+                        <i data-lucide="user-plus"></i>
+                        <span>Register Farmer</span>
+                    </button>
+                </div>
+
+                <!-- Farmer Creation/Edit Form -->
+                <div class="card form-card mb-4 hidden-collapsible" id="farmerFormCard">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i data-lucide="user-plus"></i>
+                            <h3 id="farmerFormTitle">Register New Farmer</h3>
+                        </div>
+                        <button class="btn-icon" onclick="app.toggleCollapse('farmerFormCard')"><i data-lucide="x"></i></button>
+                    </div>
+                    <div class="card-body">
+                        <form id="farmerForm">
+                            <input type="hidden" id="farmerFormId" value="">
+                            <div class="form-grid-3">
+                                <div class="form-group">
+                                    <label for="farmerName" class="required-label">Farmer Full Name</label>
+                                    <input type="text" id="farmerName" class="form-control" placeholder="e.g. Ramesh Kumar" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="farmerPhone" class="required-label">Phone Number</label>
+                                    <input type="tel" id="farmerPhone" class="form-control" placeholder="e.g. +91 9876543210" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="farmerEmail">Email Address</label>
+                                    <input type="email" id="farmerEmail" class="form-control" placeholder="e.g. ramesh@example.com">
+                                </div>
+                            </div>
+                            <div class="form-grid-2 mt-3">
+                                <div class="form-group">
+                                    <label for="farmerRegionSelect" class="required-label">Assigned Region</label>
+                                    <select id="farmerRegionSelect" class="form-control" required>
+                                        <option value="">-- Select Agricultural Region --</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="farmerAddress" class="required-label">Village / Postal Address</label>
+                                    <input type="text" id="farmerAddress" class="form-control" placeholder="e.g. 12 Green Field Road, East Village" required>
+                                </div>
+                            </div>
+                            <div class="form-actions align-right mt-3">
+                                <button type="button" class="btn btn-secondary" onclick="app.resetFarmerForm()">Cancel</button>
+                                <button type="submit" class="btn btn-success" id="farmerSaveBtn">
+                                    <i data-lucide="check"></i>
+                                    <span>Save Farmer Record</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Farmers List Table -->
+                <div class="card table-card">
+                    <div class="card-header search-header">
+                        <div class="search-box">
+                            <i data-lucide="search"></i>
+                            <input type="text" id="farmerSearchInput" placeholder="Search farmers by name, phone, email, region or address..." class="form-control">
+                        </div>
+                        <div class="filter-box">
+                            <select id="farmerRegionFilter" class="form-control form-control-sm">
+                                <option value="">All Regions</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Farmer Name</th>
+                                        <th>Phone</th>
+                                        <th>Email</th>
+                                        <th>Region</th>
+                                        <th>Village / Address</th>
+                                        <th>Registered Date</th>
+                                        <th class="text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="farmersTableBody">
+                                    <tr><td colspan="8" class="text-center text-muted py-4">Loading farmers...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION D: OFFICER MANAGEMENT -->
+            <section id="sec-officers" class="tab-panel">
+                <div class="page-header">
+                    <div>
+                        <h2 class="page-title">Agricultural Officer Roster</h2>
+                        <p class="page-subtitle">Manage field officers, specializations, region jurisdiction, and active duty status.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="app.toggleCollapse('officerFormCard')">
+                        <i data-lucide="shield-plus"></i>
+                        <span>Add Agricultural Officer</span>
+                    </button>
+                </div>
+
+                <!-- Officer Registration Form -->
+                <div class="card form-card mb-4 hidden-collapsible" id="officerFormCard">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i data-lucide="shield-plus"></i>
+                            <h3 id="officerFormTitle">Register New Officer</h3>
+                        </div>
+                        <button class="btn-icon" onclick="app.toggleCollapse('officerFormCard')"><i data-lucide="x"></i></button>
+                    </div>
+                    <div class="card-body">
+                        <form id="officerForm">
+                            <input type="hidden" id="officerFormId" value="">
+                            <div class="form-grid-3">
+                                <div class="form-group">
+                                    <label for="officerName" class="required-label">Officer Name</label>
+                                    <input type="text" id="officerName" class="form-control" placeholder="e.g. Dr. A. Swaminathan" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="officerEmail" class="required-label">Email Address</label>
+                                    <input type="email" id="officerEmail" class="form-control" placeholder="e.g. officer.swami@agri.gov.in" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="officerPhone" class="required-label">Phone Number</label>
+                                    <input type="tel" id="officerPhone" class="form-control" placeholder="e.g. +91 9443322110" required>
+                                </div>
+                            </div>
+                            <div class="form-grid-3 mt-3">
+                                <div class="form-group">
+                                    <label for="officerSpecialization" class="required-label">Specialization</label>
+                                    <select id="officerSpecialization" class="form-control" required>
+                                        <option value="">-- Select Expertise --</option>
+                                        <option value="Plant Pathology & Diseases">Plant Pathology & Diseases</option>
+                                        <option value="Entomology & Pest Control">Entomology & Pest Control</option>
+                                        <option value="Soil Health & Fertilization">Soil Health & Fertilization</option>
+                                        <option value="Horticulture & Fruits">Horticulture & Fruits</option>
+                                        <option value="Agronomy & Crop Management">Agronomy & Crop Management</option>
+                                        <option value="General Crop Advisor">General Crop Advisor</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="officerRegionSelect" class="required-label">Assigned Region</label>
+                                    <select id="officerRegionSelect" class="form-control" required>
+                                        <option value="">-- Select Assigned Region --</option>
+                                    </select>
+                                </div>
+                                <div class="form-group d-flex-align-end">
+                                    <label class="checkbox-container mt-4">
+                                        <input type="checkbox" id="officerActive" checked>
+                                        <span class="checkmark"></span>
+                                        <span class="checkbox-label">Active Duty Status</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-actions align-right mt-3">
+                                <button type="button" class="btn btn-secondary" onclick="app.resetOfficerForm()">Cancel</button>
+                                <button type="submit" class="btn btn-success" id="officerSaveBtn">
+                                    <i data-lucide="check"></i>
+                                    <span>Save Officer</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Officers Table -->
+                <div class="card table-card">
+                    <div class="card-header search-header">
+                        <div class="search-box">
+                            <i data-lucide="search"></i>
+                            <input type="text" id="officerSearchInput" placeholder="Search officers by name, email, specialization, region..." class="form-control">
+                        </div>
+                        <div class="filter-box">
+                            <select id="officerRegionFilter" class="form-control form-control-sm">
+                                <option value="">All Regions</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Officer Name</th>
+                                        <th>Specialization</th>
+                                        <th>Assigned Region</th>
+                                        <th>Email</th>
+                                        <th>Phone</th>
+                                        <th>Active</th>
+                                        <th class="text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="officersTableBody">
+                                    <tr><td colspan="8" class="text-center text-muted py-4">Loading officers...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION E: CROP PROBLEM REPORTING (NEW TICKET) -->
+            <section id="sec-tickets-new" class="tab-panel">
+                <div class="page-header">
+                    <div>
+                        <h2 class="page-title">Report Crop Problem</h2>
+                        <p class="page-subtitle">Submit a new crop disease or pest issue ticket to assigned regional officers.</p>
+                    </div>
+                </div>
+
+                <div class="card max-w-4xl mx-auto">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i data-lucide="file-text"></i>
+                            <h3>Crop Issue Reporting Form</h3>
+                        </div>
+                        <span class="badge badge-primary">Database Sync Mode</span>
+                    </div>
+                    <div class="card-body">
+                        <form id="newTicketForm">
+                            <!-- Farmer & Region Auto Select -->
+                            <div class="form-grid-2">
+                                <div class="form-group">
+                                    <label for="ticketFarmerSelect" class="required-label">Select Farmer</label>
+                                    <select id="ticketFarmerSelect" class="form-control" required>
+                                        <option value="">-- Choose Farmer --</option>
+                                    </select>
+                                    <small class="form-hint" id="ticketFarmerRegionHint">Select a farmer to auto-detect region & match regional officers.</small>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="ticketOfficerSelect">Assigned Officer</label>
+                                    <select id="ticketOfficerSelect" class="form-control">
+                                        <option value="">-- Unassigned (Auto-Assign Later) --</option>
+                                    </select>
+                                    <small class="form-hint">Officers in the farmer's region are listed first.</small>
+                                </div>
+                            </div>
+
+                            <!-- Crop Name & Suggestions -->
+                            <div class="form-group mt-3">
+                                <label for="ticketCropName" class="required-label">Crop Name</label>
+                                <input type="text" id="ticketCropName" class="form-control" placeholder="e.g. Paddy / Rice, Tomato, Maize, Cotton, Wheat" required>
+                                <div class="quick-tags mt-2">
+                                    <span class="tag-label">Quick Select:</span>
+                                    <button type="button" class="chip" onclick="app.setCropName('Paddy / Rice')">🌾 Paddy / Rice</button>
+                                    <button type="button" class="chip" onclick="app.setCropName('Wheat')">🌽 Wheat</button>
+                                    <button type="button" class="chip" onclick="app.setCropName('Tomato')">🍅 Tomato</button>
+                                    <button type="button" class="chip" onclick="app.setCropName('Cotton')">🌱 Cotton</button>
+                                    <button type="button" class="chip" onclick="app.setCropName('Sugarcane')">🎍 Sugarcane</button>
+                                    <button type="button" class="chip" onclick="app.setCropName('Banana')">🍌 Banana</button>
+                                </div>
+                            </div>
+
+                            <!-- Symptoms Description -->
+                            <div class="form-group mt-3">
+                                <label for="ticketSymptoms" class="required-label">Observed Disease / Symptom Description</label>
+                                <textarea id="ticketSymptoms" class="form-control" rows="4" placeholder="Describe symptoms in detail (e.g. Yellow spots on leaves, stem wilting, brown root rot, pest infestation on lower branches...)" required></textarea>
+                            </div>
+
+                            <!-- Ticket Status & Escalation Flag -->
+                            <div class="form-grid-2 mt-3">
+                                <div class="form-group">
+                                    <label for="ticketStatus" class="required-label">Initial Ticket Status</label>
+                                    <select id="ticketStatus" class="form-control" required>
+                                        <option value="OPEN" selected>OPEN — New Unresolved Report</option>
+                                        <option value="IN_PROGRESS">IN_PROGRESS — Under Officer Review</option>
+                                        <option value="RESOLVED">RESOLVED — Recommendation Provided</option>
+                                        <option value="CLOSED">CLOSED — Completed</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group d-flex-align-end">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="ticketEscalated">
+                                        <span class="checkmark danger"></span>
+                                        <span class="checkbox-label text-danger font-semibold">Mark as High Priority / Escalated Issue</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Optional Initial Photo URL attachment -->
+                            <div class="form-group mt-3 pt-3 border-t">
+                                <label for="ticketPhotoUrl">
+                                    <i data-lucide="image" class="inline-icon"></i> Direct Photo Record URL (Optional)
+                                </label>
+                                <div class="input-with-button">
+                                    <input type="url" id="ticketPhotoUrl" class="form-control" placeholder="https://images.unsplash.com/... or paste image direct URL">
+                                    <button type="button" class="btn btn-secondary btn-sm" onclick="app.previewTicketPhoto()">Preview</button>
+                                </div>
+                                <small class="form-hint">Backend stores image links in <code>ticketphoto</code> table. You can also attach photos after submission in the Photo Gallery.</small>
+                                
+                                <div id="ticketPhotoPreviewBox" class="photo-preview-box hidden mt-2">
+                                    <img id="ticketPhotoPreviewImg" src="" alt="Preview" onerror="app.handleImageError(this)">
+                                </div>
+                            </div>
+
+                            <!-- Form Actions -->
+                            <div class="form-actions align-right mt-4">
+                                <button type="button" class="btn btn-secondary" onclick="app.switchTab('sec-tickets-list')">Cancel</button>
+                                <button type="submit" class="btn btn-primary btn-lg" id="submitTicketBtn">
+                                    <i data-lucide="send"></i>
+                                    <span>Submit Problem Report</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION F: TICKET MANAGEMENT & OFFICER RECOMMENDATIONS WORKSPACE -->
+            <section id="sec-tickets-list" class="tab-panel">
+                <div class="page-header">
+                    <div>
+                        <h2 class="page-title">Ticket & Advisory Workspace</h2>
+                        <p class="page-subtitle">Track, filter, diagnose crop issues, assign officers, and update official recommendations.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="app.switchTab('sec-tickets-new')">
+                        <i data-lucide="plus"></i>
+                        <span>New Report</span>
+                    </button>
+                </div>
+
+                <!-- Tickets List Filter Toolbar -->
+                <div class="card mb-4">
+                    <div class="card-body p-3">
+                        <div class="filter-toolbar">
+                            <div class="search-box flex-grow">
+                                <i data-lucide="search"></i>
+                                <input type="text" id="ticketSearchInput" placeholder="Search by crop, farmer name, symptoms, officer or recommendation..." class="form-control">
+                            </div>
+                            
+                            <div class="filter-group">
+                                <select id="ticketStatusFilter" class="form-control">
+                                    <option value="">All Statuses</option>
+                                    <option value="OPEN">OPEN Only</option>
+                                    <option value="IN_PROGRESS">IN_PROGRESS Only</option>
+                                    <option value="RESOLVED">RESOLVED Only</option>
+                                    <option value="CLOSED">CLOSED Only</option>
+                                    <option value="ESCALATED">🚨 ESCALATED Only</option>
+                                </select>
+                            </div>
+
+                            <div class="filter-group">
+                                <select id="ticketOfficerFilter" class="form-control">
+                                    <option value="">All Officers</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tickets Main Table -->
+                <div class="card table-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i data-lucide="list"></i>
+                            <h3>All Crop Problem Reports</h3>
+                        </div>
+                        <div id="ticketCountBadge" class="badge badge-subtle">0 Total Tickets</div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Ticket ID</th>
+                                        <th>Farmer</th>
+                                        <th>Crop</th>
+                                        <th>Symptoms</th>
+                                        <th>Officer Assigned</th>
+                                        <th>Status</th>
+                                        <th>Recommendation</th>
+                                        <th>Escalated</th>
+                                        <th class="text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ticketsTableBody">
+                                    <tr><td colspan="9" class="text-center text-muted py-4">Loading tickets...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION G: PHOTO MANAGEMENT GALLERY -->
+            <section id="sec-photos" class="tab-panel">
+                <div class="page-header">
+                    <div>
+                        <h2 class="page-title">Ticket Photo Attachments</h2>
+                        <p class="page-subtitle">View and attach diagnostic photographs to crop problem tickets via the Photo API.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="app.toggleCollapse('photoFormCard')">
+                        <i data-lucide="image-plus"></i>
+                        <span>Attach New Photo URL</span>
+                    </button>
+                </div>
+
+                <!-- Photo Attach Form -->
+                <div class="card form-card mb-4 hidden-collapsible" id="photoFormCard">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i data-lucide="image-plus"></i>
+                            <h3>Link Photo URL to Ticket</h3>
+                        </div>
+                        <button class="btn-icon" onclick="app.toggleCollapse('photoFormCard')"><i data-lucide="x"></i></button>
+                    </div>
+                    <div class="card-body">
+                        <form id="photoForm">
+                            <input type="hidden" id="photoFormId" value="">
+                            <div class="form-grid-2">
+                                <div class="form-group">
+                                    <label for="photoTicketSelect" class="required-label">Select Ticket</label>
+                                    <select id="photoTicketSelect" class="form-control" required>
+                                        <option value="">-- Choose Ticket --</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="photoUrlInput" class="required-label">Image URL</label>
+                                    <input type="url" id="photoUrlInput" class="form-control" placeholder="https://images.unsplash.com/photo-..." required>
+                                </div>
+                            </div>
+
+                            <!-- Sample Image Preset Selector -->
+                            <div class="form-group mt-3">
+                                <label class="tag-label">Sample Crop Disease Stock URLs (Click to set):</label>
+                                <div class="quick-tags mt-1">
+                                    <button type="button" class="chip chip-sm" onclick="app.setSamplePhoto('https://images.unsplash.com/photo-1592417817098-8f3d6ef23a28?auto=format&fit=crop&w=600&q=80')">🍃 Leaf Rust Sample</button>
+                                    <button type="button" class="chip chip-sm" onclick="app.setSamplePhoto('https://images.unsplash.com/photo-1530595467537-0b5996c41f2d?auto=format&fit=crop&w=600&q=80')">🌾 Paddy Blight Sample</button>
+                                    <button type="button" class="chip chip-sm" onclick="app.setSamplePhoto('https://images.unsplash.com/photo-1595855759920-86582396756a?auto=format&fit=crop&w=600&q=80')">🍅 Tomato Rot Sample</button>
+                                    <button type="button" class="chip chip-sm" onclick="app.setSamplePhoto('https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=600&q=80')">🌽 Field Pest Sample</button>
+                                </div>
+                            </div>
+
+                            <!-- Live Photo Preview -->
+                            <div id="photoFormPreview" class="photo-preview-box hidden mt-3">
+                                <img id="photoFormPreviewImg" src="" alt="Preview" onerror="app.handleImageError(this)">
+                            </div>
+
+                            <div class="form-actions align-right mt-3">
+                                <button type="button" class="btn btn-secondary" onclick="app.resetPhotoForm()">Cancel</button>
+                                <button type="submit" class="btn btn-success" id="photoSaveBtn">
+                                    <i data-lucide="upload"></i>
+                                    <span>Attach Photo</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Photo Gallery Cards Grid -->
+                <div class="photo-gallery-grid" id="photoGalleryGrid">
+                    <div class="empty-state-box col-span-full">
+                        <i data-lucide="image-off"></i>
+                        <h4>No photos loaded</h4>
+                        <p>Attach a photo link to any crop ticket to display here.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION H: ADMIN OVERVIEW -->
+            <section id="sec-admin" class="tab-panel">
+                <div class="page-header">
+                    <div>
+                        <h2 class="page-title">Admin System & Cross-Entity Overview</h2>
+                        <p class="page-subtitle">Aggregate database metrics, entity cross-references, and API mapping reference.</p>
+                    </div>
+                </div>
+
+                <!-- Database Metrics Row -->
+                <div class="kpi-grid mb-4">
+                    <div class="kpi-card text-emerald">
+                        <div class="kpi-title">Region Entity Mapping</div>
+                        <div class="kpi-value" id="adminRegCount">0</div>
+                        <div class="kpi-footer">Endpoint: <code>/Region/*</code></div>
+                    </div>
+                    <div class="kpi-card text-blue">
+                        <div class="kpi-title">Farmer Entity Mapping</div>
+                        <div class="kpi-value" id="adminFarmerCount">0</div>
+                        <div class="kpi-footer">Endpoint: <code>/farmer/*</code></div>
+                    </div>
+                    <div class="kpi-card text-amber">
+                        <div class="kpi-title">Officer Entity Mapping</div>
+                        <div class="kpi-value" id="adminOfficerCount">0</div>
+                        <div class="kpi-footer">Endpoint: <code>/officer/*</code></div>
+                    </div>
+                    <div class="kpi-card text-indigo">
+                        <div class="kpi-title">Ticket & Photo Entities</div>
+                        <div class="kpi-value" id="adminTicketPhotoCount">0 / 0</div>
+                        <div class="kpi-footer">Endpoints: <code>/ticket/*</code> & <code>/photo/*</code></div>
+                    </div>
+                </div>
+
+                <!-- Region Coverage Matrix -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i data-lucide="map-pin"></i>
+                            <h3>Region Cross-Reference Distribution Matrix</h3>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Region ID</th>
+                                        <th>Region Name</th>
+                                        <th>District & State</th>
+                                        <th>PIN Code</th>
+                                        <th>Assigned Farmers</th>
+                                        <th>Assigned Officers</th>
+                                        <th>Total Tickets</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="adminRegionMatrixBody">
+                                    <tr><td colspan="7" class="text-center text-muted py-4">Calculating matrix...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Reference Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i data-lucide="code"></i>
+                            <h3>Backend REST API Architecture</h3>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="api-endpoint-list">
+                            <div class="api-item"><span class="badge badge-success">GET/POST/PUT/DELETE</span> <code>/Region/get</code>, <code>/Region/create</code>, <code>/Region/update/{id}</code>, <code>/Region/delete/{id}</code></div>
+                            <div class="api-item"><span class="badge badge-success">GET/POST/PUT/DELETE</span> <code>/farmer/get</code>, <code>/farmer/create</code>, <code>/farmer/update/{id}</code>, <code>/farmer/delete/{id}</code></div>
+                            <div class="api-item"><span class="badge badge-success">GET/POST/PUT/DELETE</span> <code>/officer/get</code>, <code>/officer/create</code>, <code>/officer/update/{id}</code>, <code>/officer/delete/{id}</code></div>
+                            <div class="api-item"><span class="badge badge-success">GET/POST/PUT/DELETE</span> <code>/ticket/get</code>, <code>/ticket/create</code>, <code>/ticket/update/{id}</code>, <code>/ticket/delete/{id}</code></div>
+                            <div class="api-item"><span class="badge badge-success">GET/POST/PUT/DELETE</span> <code>/photo/get</code>, <code>/photo/create</code>, <code>/photo/update/{id}</code>, <code>/photo/delete/{id}</code></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- MODAL DIALOG: Ticket Detail & Officer Advisory Form -->
+    <div class="modal-backdrop hidden" id="ticketDetailModal">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="modal-title">
+                        <i data-lucide="clipboard-check" class="text-emerald"></i>
+                        <div>
+                            <h3 id="modalTicketTitle">Ticket #--</h3>
+                            <span class="text-muted text-sm" id="modalTicketDate">Submitted: --</span>
+                        </div>
+                    </div>
+                    <button class="btn-icon" onclick="app.closeModal('ticketDetailModal')"><i data-lucide="x"></i></button>
+                </div>
+
+                <div class="modal-body">
+                    <!-- Ticket Details Header Grid -->
+                    <div class="detail-summary-grid mb-4">
+                        <div class="detail-box">
+                            <span class="detail-label">Farmer</span>
+                            <strong id="modalTicketFarmer">--</strong>
+                            <span class="text-xs text-muted" id="modalTicketFarmerContact">--</span>
+                        </div>
+                        <div class="detail-box">
+                            <span class="detail-label">Region</span>
+                            <strong id="modalTicketRegion">--</strong>
+                        </div>
+                        <div class="detail-box">
+                            <span class="detail-label">Crop Name</span>
+                            <strong id="modalTicketCrop" class="text-emerald">--</strong>
+                        </div>
+                        <div class="detail-box">
+                            <span class="detail-label">Current Status</span>
+                            <div id="modalTicketStatusBadge">--</div>
+                        </div>
+                    </div>
+
+                    <!-- Symptoms Box -->
+                    <div class="info-block mb-4">
+                        <h4 class="block-title"><i data-lucide="stethoscope"></i> Symptoms Reported</h4>
+                        <p class="symptoms-text" id="modalTicketSymptoms">--</p>
+                    </div>
+
+                    <!-- Photos Box -->
+                    <div class="info-block mb-4">
+                        <h4 class="block-title d-flex-between">
+                            <span><i data-lucide="image"></i> Attached Diagnostic Photos</span>
+                            <button class="btn btn-xs btn-outline-primary" onclick="app.openAttachPhotoForModalTicket()">+ Attach Image</button>
+                        </h4>
+                        <div class="modal-photo-strip" id="modalTicketPhotosStrip">
+                            <span class="text-muted text-sm">No photos linked to this ticket.</span>
+                        </div>
+                    </div>
+
+                    <!-- Officer Advisory Form -->
+                    <form id="ticketAdvisoryForm" class="info-block advisory-block">
+                        <h4 class="block-title"><i data-lucide="message-square-plus"></i> Officer Diagnosis & Advisory Form</h4>
+                        
+                        <div class="form-grid-2">
+                            <div class="form-group">
+                                <label for="modalOfficerSelect">Assigned Agricultural Officer</label>
+                                <select id="modalOfficerSelect" class="form-control">
+                                    <option value="">-- Unassigned --</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="modalStatusSelect" class="required-label">Update Ticket Status</label>
+                                <select id="modalStatusSelect" class="form-control" required>
+                                    <option value="OPEN">OPEN</option>
+                                    <option value="IN_PROGRESS">IN_PROGRESS</option>
+                                    <option value="RESOLVED">RESOLVED</option>
+                                    <option value="CLOSED">CLOSED</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group mt-3">
+                            <label for="modalRecommendationText">Official Advisory / Treatment Recommendation</label>
+                            <textarea id="modalRecommendationText" class="form-control" rows="4" placeholder="Enter specific pesticide/fungicide recommendation, dosage instructions, irrigation guidance, or field inspection notes..."></textarea>
+                        </div>
+
+                        <div class="form-grid-2 mt-3">
+                            <div class="form-group d-flex-align-center">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="modalEscalatedCheck">
+                                    <span class="checkmark danger"></span>
+                                    <span class="checkbox-label text-danger font-semibold">Flag as Escalated High Priority</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-actions align-right mt-3">
+                            <button type="button" class="btn btn-secondary" onclick="app.closeModal('ticketDetailModal')">Close</button>
+                            <button type="submit" class="btn btn-success" id="saveAdvisoryBtn">
+                                <i data-lucide="save"></i>
+                                <span>Save Advisory & Update Ticket</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATIONS CONTAINER -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="index.js"></script>
+</body>
+</html>
